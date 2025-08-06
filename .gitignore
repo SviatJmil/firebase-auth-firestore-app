@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+dist/
+build/
+.env
+.venv/
+venv/
+
+# VS Code / PyCharm
+.vscode/
+.idea/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Firebase Admin SDK keys
+firebase_config.json
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+
+# Google Cloud / Deployment
+*.service-account.json
+.gcloud/
+node_modules/
