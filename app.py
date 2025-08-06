@@ -3,6 +3,7 @@ import pyrebase
 import firebase_admin
 from firebase_admin import credentials, firestore
 import json
+import os
 
 # === Firebase config (replace with your real values) ===
 with open("firebase_client_config.json") as f:
@@ -16,9 +17,14 @@ auth = firebase.auth()
 # у Cloud Run, Cloud Functions, App Engine — ти можеш не використовувати .json ключ взагалі!
 # Google автоматично підставляє обліковий запис сервісу через Workload Identity.
 # Сервісний акаунт, під яким запускається Cloud Run, має мати роль: Cloud Datastore User (для Firestore), або Editor (для доступу до Firestore + іншого)
-# но ми наразі могли собі позволити firebase_config.json
-cred = credentials.Certificate("firebase_config.json")
-firebase_admin.initialize_app(cred)
+
+cred = None
+if os.path.exists("firebase_config.json"):
+    cred = credentials.Certificate("firebase_config.json")
+    firebase_admin.initialize_app(cred)
+else:
+    firebase_admin.initialize_app()
+
 db = firestore.client()
 
 # === Flask App ===
