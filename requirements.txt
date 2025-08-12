@@ -1,4 +1,5 @@
-flask
+fastapi
+uvicorn
 firebase-admin
 pyrebase4
 gunicorn

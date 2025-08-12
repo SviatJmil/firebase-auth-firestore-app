@@ -1,11 +1,12 @@
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, HTTPException, Path
+from pydantic import BaseModel
 import pyrebase
 import firebase_admin
 from firebase_admin import credentials, firestore
 import json
 import os
 
-# === Firebase config (replace with your real values) ===
+# === Firebase config ===
 with open("firebase_client_config.json") as f:
     firebase_config = json.load(f)
 
@@ -14,11 +15,6 @@ firebase = pyrebase.initialize_app(firebase_config)
 auth = firebase.auth()
 
 # === Init Firestore (admin SDK) ===
-# у Cloud Run, Cloud Functions, App Engine — ти можеш не використовувати .json ключ взагалі!
-# Google автоматично підставляє обліковий запис сервісу через Workload Identity.
-# Сервісний акаунт, під яким запускається Cloud Run, має мати роль: Cloud Datastore User (для Firestore), або Editor (для доступу до Firestore + іншого)
-
-cred = None
 if os.path.exists("firebase_config.json"):
     cred = credentials.Certificate("firebase_config.json")
     firebase_admin.initialize_app(cred)
@@ -27,48 +23,45 @@ else:
 
 db = firestore.client()
 
-# === Flask App ===
-app = Flask(__name__)
+# === FastAPI App ===
+app = FastAPI(title="Firebase Auth + Firestore API")
 
-@app.route("/")
-def home():
-    return "👋 Firebase Auth + Firestore (Python)"
+# === Pydantic models for requests ===
+class AuthRequest(BaseModel):
+    email: str
+    password: str
 
-@app.route("/signup", methods=["POST"])
-def signup():
-    data = request.get_json()
-    email = data["email"]
-    password = data["password"]
+class UserData(BaseModel):
+    data: dict
 
+@app.get("/")
+async def home():
+    return {"message": "👋 Firebase Auth + Firestore (Python, FastAPI)"}
+
+@app.post("/signup")
+async def signup(request: AuthRequest):
     try:
-        user = auth.create_user_with_email_and_password(email, password)
-        return jsonify({"message": "User created", "email": user["email"]})
+        user = auth.create_user_with_email_and_password(request.email, request.password)
+        return {"message": "User created", "email": user["email"]}
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        raise HTTPException(status_code=400, detail=str(e))
 
-@app.route("/login", methods=["POST"])
-def login():
-    data = request.get_json()
-    email = data["email"]
-    password = data["password"]
-
+@app.post("/login")
+async def login(request: AuthRequest):
     try:
-        user = auth.sign_in_with_email_and_password(email, password)
-        return jsonify({"message": "Login success", "idToken": user["idToken"]})
+        user = auth.sign_in_with_email_and_password(request.email, request.password)
+        return {"message": "Login success", "idToken": user["idToken"]}
     except Exception as e:
-        return jsonify({"error": str(e)}), 401
+        raise HTTPException(status_code=401, detail=str(e))
 
-@app.route("/user/<email>", methods=["GET", "POST"])
-def user_data(email):
-    if request.method == "POST":
-        data = request.get_json()
-        db.collection("users").document(email).set(data)
-        return jsonify({"message": "Data saved"})
-
+@app.get("/user/{email}")
+async def get_user(email: str = Path(..., description="User email")):
     doc = db.collection("users").document(email).get()
     if doc.exists:
-        return jsonify(doc.to_dict())
-    return jsonify({"error": "User not found"}), 404
+        return doc.to_dict()
+    raise HTTPException(status_code=404, detail="User not found")
 
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0")
+@app.post("/user/{email}")
+async def save_user(email: str, data: dict):
+    db.collection("users").document(email).set(data)
+    return {"message": "Data saved"}
